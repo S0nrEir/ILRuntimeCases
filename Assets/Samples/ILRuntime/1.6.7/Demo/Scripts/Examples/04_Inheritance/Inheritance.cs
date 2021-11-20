@@ -99,14 +99,14 @@ public class Inheritance : MonoBehaviour
         appdomain.UnityMainThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
 #endif
         //这里做一些ILRuntime的注册，这里应该写继承适配器的注册，为了演示方便，这个例子写在OnHotFixLoaded了
+        //Debug.Log( "现在我们来注册适配器, 该适配器由ILRuntime/Generate Cross Binding Adapter菜单命令自动生成" );
+        appdomain.RegisterCrossBindingAdaptor( new TestClassBaseAdapter() );
     }
 
     void OnHotFixLoaded()
     {
         Debug.Log("首先我们来创建热更里的类实例");
         TestClassBase obj;
-        Debug.Log("现在我们来注册适配器, 该适配器由ILRuntime/Generate Cross Binding Adapter菜单命令自动生成");
-        appdomain.RegisterCrossBindingAdaptor(new TestClassBaseAdapter());
         Debug.Log("现在再来尝试创建一个实例");
         obj = appdomain.Instantiate<TestClassBase>("HotFix_Project.TestInheritance");
         Debug.Log("现在来调用成员方法");

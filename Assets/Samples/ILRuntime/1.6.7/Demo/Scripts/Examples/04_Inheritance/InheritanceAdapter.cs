@@ -11,6 +11,8 @@ namespace ILRuntimeDemo
         static CrossBindingMethodInfo<System.Int32> mset_Value_1 = new CrossBindingMethodInfo<System.Int32>("set_Value");
         static CrossBindingMethodInfo<System.String> mTestVirtual_2 = new CrossBindingMethodInfo<System.String>("TestVirtual");
         static CrossBindingMethodInfo<System.Int32> mTestAbstract_3 = new CrossBindingMethodInfo<System.Int32>("TestAbstract");
+
+        //该适配器要适配的类型（针对哪一个类型的适配器）
         public override Type BaseCLRType
         {
             get
@@ -19,6 +21,7 @@ namespace ILRuntimeDemo
             }
         }
 
+        //该适配器的实际类型
         public override Type AdaptorType
         {
             get
@@ -32,6 +35,8 @@ namespace ILRuntimeDemo
             return new Adapter(appdomain, instance);
         }
 
+        //对于所有要被热更工程继承的类型，需要写一个对应的Adapter，并继承该类型和实现CrossBindingAdaptorType接口
+        //这实际上就是热更工程中要继承类型在主工程中的真实类型
         public class Adapter : global::TestClassBase, CrossBindingAdaptorType
         {
             ILTypeInstance instance;
