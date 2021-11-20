@@ -6,6 +6,7 @@ using ILRuntime.CLR.TypeSystem;
 using ILRuntime.CLR.Method;
 using ILRuntime.Runtime.Enviorment;
 using ILRuntime.Runtime.Intepreter;
+using System;
 //下面这行为了取消使用WWW的警告，Unity2018以后推荐使用UnityWebRequest，处于兼容性考虑Demo依然使用WWW
 #pragma warning disable CS0618
 
@@ -21,7 +22,7 @@ public class DelegateDemo : MonoBehaviour
 
     //AppDomain是ILRuntime的入口，最好是在一个单例类中保存，整个游戏全局就一个，这里为了示例方便，每个例子里面都单独做了一个
     //大家在正式项目中请全局只创建一个AppDomain
-    AppDomain appdomain;
+    ILRuntime.Runtime.Enviorment.AppDomain appdomain;
     System.IO.MemoryStream fs;
     System.IO.MemoryStream p;
 
@@ -78,7 +79,13 @@ public class DelegateDemo : MonoBehaviour
         OnHotFixLoaded();
     }
 
-    void InitializeILRuntime()
+    //在主工程当中声明对应类型的delegate，在热更工程中调用即可
+    //注册无返回值的委托，使用appdomain.DelegateManager.RegisterMethodDelegate<int>();泛型传入参数列表
+    //注册有返回值的委托，使用apodomain.DelegateManager.RegisterFunctionDelegate<int,string>;泛型列表最后一个参数为返回值类型
+    //appdomain.DelegateManager.RegisterDelegateConvertor<T>(Action)用于将Action或Func转成目标的委托类型
+    //注意，对于所有的委托类型注册都应该在主工程中进行，这是因为，如果不进行注册，在运行时IL2CPP会认为该类型的委托没有用，会将他干掉
+    //简单来说，就是为IL2CPP预留一些类型，避免报错
+    void InitializeILRuntime ()
     {
 #if DEBUG && (UNITY_EDITOR || UNITY_ANDROID || UNITY_IPHONE)
         //由于Unity的Profiler接口只允许在主线程使用，为了避免出异常，需要告诉ILRuntime主线程的线程ID才能正确将函数运行耗时报告给Profiler
@@ -91,19 +98,20 @@ public class DelegateDemo : MonoBehaviour
         appdomain.DelegateManager.RegisterFunctionDelegate<int, string>();
         //Action<string> 的参数为一个string
         appdomain.DelegateManager.RegisterMethodDelegate<string>();
-        
+
         //ILRuntime内部是用Action和Func这两个系统内置的委托类型来创建实例的，所以其他的委托类型都需要写转换器
         //将Action或者Func转换成目标委托类型
 
-        appdomain.DelegateManager.RegisterDelegateConvertor<TestDelegateMethod>((action) =>
-        {
+        appdomain.DelegateManager.RegisterDelegateConvertor<TestDelegateMethod>( (action) =>
+         {
             //转换器的目的是把Action或者Func转换成正确的类型，这里则是把Action<int>转换成TestDelegateMethod
-            return new TestDelegateMethod((a) =>
-            {
+            return new TestDelegateMethod( (a) =>
+             {
                 //调用委托实例
-                ((System.Action<int>)action)(a);
-            });
-        });
+                ((System.Action<int>)action)( a );
+             } );
+         } );
+
         //对于TestDelegateFunction同理，只是是将Func<int, string>转换成TestDelegateFunction
         appdomain.DelegateManager.RegisterDelegateConvertor<TestDelegateFunction>((action) =>
         {
@@ -130,8 +138,23 @@ public class DelegateDemo : MonoBehaviour
         Debug.Log("如果需要跨域调用委托（将热更DLL里面的委托实例传到Unity主工程用）, 就需要注册适配器");
         Debug.Log("这是因为iOS的IL2CPP模式下，不能动态生成类型，为了避免出现不可预知的问题，我们没有通过反射的方式创建委托实例，因此需要手动进行一些注册");
         Debug.Log("如果没有注册委托适配器，运行时会报错并提示需要的注册代码，直接复制粘贴到ILRuntime初始化的地方");
-        appdomain.Invoke("HotFix_Project.TestDelegate", "Initialize2", null, null);
-        appdomain.Invoke("HotFix_Project.TestDelegate", "RunTest2", null, null);
+        appdomain.Invoke("HotFix_Project.TestDelegate", "Initialize", null, null);
+        appdomain.Invoke("HotFix_Project.TestDelegate", "RunTest", null, null);
+
+        Debug.Log( "如果需要跨域调用委托（将热更DLL中的委托实例传到Unity主工程使用），就需要注册适配器，不然就会像下面这样：" );
+        try
+        {
+            appdomain.Invoke( "HotFix_Project.TestDelegate", "Initialize2", null, null );
+        }
+        catch (Exception err)
+        {
+            //这里是因为：热更工程中的Initialize2中没有一个包含Action<int>类型的委托实例，换句话说，就是没有将Action<int>类型的委托注册在主工程中进行注册
+            //因此，实际上可以理解为：在主工程中没有找到类型为Action<int>的委托类型，因此报错，如果没有注册，则在下面的TestMethodDelegate(789);这行代码中回
+            //会报NullReferenceException
+            //为了解决这个问题，应该在InitializeILRuntime()中对该类型的委托进行注册appdomain.DelegateManager.RegisterMethodDelegate<int>();
+            Debug.LogError( err.Message );
+        }
+
         Debug.Log("运行成功，我们可以看见，用Action或者Func当作委托类型的话，可以避免写转换器，所以项目中在不必要的情况下尽量只用Action和Func");
         Debug.Log("另外应该尽量减少不必要的跨域委托调用，如果委托只在热更DLL中用，是不需要进行任何注册的");
         Debug.Log("---------");
