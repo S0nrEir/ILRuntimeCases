@@ -86,6 +86,9 @@ public class CLRRedirectionDemo : MonoBehaviour
 
     unsafe void OnHotFixLoaded()
     {
+        //什么时候需要挟持主工程方法：有些主工程的函数或接口无法正常处理热更DLL里的类型和对象
+        //何为重定向：将对应class的函数在主工程中进行注册，那么在热更工程中调用的时候，调用的并非该class的真实函数，而是被注册到主工程中的函数
+        //参见上面的InitializeILRuntime函数和ilrt文档，以及Log_11函数，换句话说，Log_11函数实际上是决定了被注册函数的调用方式（因为不在主工程中注册的话，是没有办法在热更工程当中使用的）
         Debug.Log("什么时候需要CLR重定向呢，当我们需要挟持原方法实现，添加一些热更DLL中的特殊处理的时候，就需要CLR重定向了");
         Debug.Log("详细文档请参见Github主页的相关文档");
         Debug.Log("CLR重定向对ILRuntime底层实现密切相关，因此要完全理解这个Demo，需要大家先看关于ILRuntime实现原理的Demo");
@@ -100,6 +103,7 @@ public class CLRRedirectionDemo : MonoBehaviour
 
     //编写重定向方法对于刚接触ILRuntime的朋友可能比较困难，比较简单的方式是通过CLR绑定生成绑定代码，然后在这个基础上改，比如下面这个代码是从UnityEngine_Debug_Binding里面复制来改的
     //如何使用CLR绑定请看相关教程和文档
+    //简单来讲，这段代码的主要作用就是从ilrt中取出对应的调用栈
     unsafe static StackObject* Log_11(ILIntepreter __intp, StackObject* __esp, IList<object> __mStack, CLRMethod __method, bool isNewObj)
     {
         //ILRuntime的调用约定为被调用者清理堆栈，因此执行这个函数后需要将参数从堆栈清理干净，并把返回值放在栈顶，具体请看ILRuntime实现原理文档
@@ -115,6 +119,7 @@ public class CLRRedirectionDemo : MonoBehaviour
         //所有非基础类型都得调用Free来释放托管堆栈
         __intp.Free(ptr_of_this_method);
 
+        //获取函数的调用堆栈
         //在真实调用Debug.Log前，我们先获取DLL内的堆栈
         var stacktrace = __domain.DebugService.GetStackTrace(__intp);
 
